@@ -81,35 +81,39 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
       } else if (fmt == "arrow" || fmt == "arrows" || fmt == "feather") {
         // Arrow Ecosystem: Memory-mapped or streaming IPC
         // (Ensure you ran 'con.Query("LOAD arrow;");' earlier)
-        load_sql = "INSERT INTO " + tspec.name + " SELECT * FROM scan_arrow_ipc('" +
-                   file_path.string() + "')";
+        load_sql = "INSERT INTO " + tspec.name +
+                   " SELECT * FROM scan_arrow_ipc('" + file_path.string() +
+                   "')";
       }
 
-      try {
-        con.Query("DROP TABLE IF EXISTS " + tspec.name);
-        con.Query(create_sql);
+      for (int t{}; t < n_trials; ++t) {
+        try {
+          con.Query("DROP TABLE IF EXISTS " + tspec.name);
+          con.Query(create_sql);
 
-        auto start{std::chrono::high_resolution_clock::now()};
+          auto start{std::chrono::high_resolution_clock::now()};
 
-        auto res{con.Query(load_sql)};
-        if (res->HasError()) {
-          throw std::runtime_error(res->GetError());
+          auto res{con.Query(load_sql)};
+          if (res->HasError()) {
+            throw std::runtime_error(res->GetError());
+          }
+
+          auto end{std::chrono::high_resolution_clock::now()};
+          std::chrono::duration<double, std::milli> elapsed{end - start};
+
+          auto avg_time{time_results[tspec.name][fmt]};
+          if (avg_time >= 0) {
+            time_results[tspec.name][fmt] =
+                (avg_time * num_data_points[tspec.name][fmt] +
+                 elapsed.count()) /
+                (num_data_points[tspec.name][fmt] + 1);
+            ++num_data_points[tspec.name][fmt];
+          }
+        } catch (const std::exception& e) {
+          std::cerr << "Error benchmarking " << fmt << " for " << tspec.name
+                    << ": " << e.what() << std::endl;
+          time_results[tspec.name][fmt] = -1.0;
         }
-
-        auto end{std::chrono::high_resolution_clock::now()};
-        std::chrono::duration<double, std::milli> elapsed{end - start};
-
-        auto avg_time{time_results[tspec.name][fmt]};
-        if (avg_time >= 0) {
-          time_results[tspec.name][fmt] =
-              (avg_time * num_data_points[tspec.name][fmt] + elapsed.count()) /
-              (num_data_points[tspec.name][fmt] + 1);
-          ++num_data_points[tspec.name][fmt];
-        }
-      } catch (const std::exception& e) {
-        std::cerr << "Error benchmarking " << fmt << " for " << tspec.name
-                  << ": " << e.what() << std::endl;
-        time_results[tspec.name][fmt] = -1.0;
       }
     }
   }
