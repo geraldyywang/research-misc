@@ -9,7 +9,7 @@
 namespace rmisc::benchmark {
 
 void RunBenchmark(const std::vector<TableSpec>& tables,
-                  const std::filesystem::path& summary_csv);
+                  const std::filesystem::path& summary_csv, int n_trials = 0);
 
 // Parquet
 

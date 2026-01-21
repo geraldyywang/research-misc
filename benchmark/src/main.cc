@@ -6,7 +6,7 @@
 #include "converters.h"
 #include "loaders.h"
 
-int main() {
+int main(int argc, char* argv[]) {
   using namespace rmisc::benchmark;
   namespace fs = std::filesystem;
 
@@ -27,5 +27,5 @@ int main() {
   }
 
   std::cout << "Starting benchmark\n";
-  RunBenchmark(table_specs, cwd / "results.csv");
+  RunBenchmark(table_specs, cwd / "results.csv", 100);
 }

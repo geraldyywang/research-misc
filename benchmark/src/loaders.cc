@@ -34,11 +34,11 @@ std::string ToDuckDBType(const ColumnSpec& col) {
 }  // namespace
 
 void RunBenchmark(const std::vector<TableSpec>& tables,
-                  const fs::path& summary_csv) {
+                  const fs::path& summary_csv, int n_trials) {
   duckdb::DuckDB db(nullptr);
   duckdb::Connection con(db);
 
-  auto res {con.Query("LOAD arrow;")};
+  auto res{con.Query("LOAD arrow;")};
   if (res->HasError()) {
     std::cerr << "Warning: Could not load arrow extension: " << res->GetError()
               << std::endl;
@@ -50,6 +50,8 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
 
   std::unordered_map<std::string, std::unordered_map<std::string, double>>
       time_results;
+  std::unordered_map<std::string, std::unordered_map<std::string, int>>
+      num_data_points;
 
   for (const auto& tspec : tables) {
     std::string create_sql{"CREATE TABLE " + tspec.name + " ("};
@@ -79,7 +81,7 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
       } else if (fmt == "arrow" || fmt == "arrows" || fmt == "feather") {
         // Arrow Ecosystem: Memory-mapped or streaming IPC
         // (Ensure you ran 'con.Query("LOAD arrow;");' earlier)
-        load_sql = "INSERT INTO " + tspec.name + " SELECT * FROM scan_arrow('" +
+        load_sql = "INSERT INTO " + tspec.name + " SELECT * FROM arrow_scan('" +
                    file_path.string() + "')";
       }
 
@@ -97,7 +99,13 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
         auto end{std::chrono::high_resolution_clock::now()};
         std::chrono::duration<double, std::milli> elapsed{end - start};
 
-        time_results[tspec.name][fmt] = elapsed.count();
+        auto avg_time{time_results[tspec.name][fmt]};
+        if (avg_time >= 0) {
+          time_results[tspec.name][fmt] =
+              (avg_time * num_data_points[tspec.name][fmt] + elapsed.count()) /
+              (num_data_points[tspec.name][fmt] + 1);
+          ++num_data_points[tspec.name][fmt];
+        }
       } catch (const std::exception& e) {
         std::cerr << "Error benchmarking " << fmt << " for " << tspec.name
                   << ": " << e.what() << std::endl;
