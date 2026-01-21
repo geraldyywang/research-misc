@@ -61,16 +61,20 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
 
       std::string load_sql;
       if (fmt == "parquet") {
-        // Standard Parquet loading
+        // Parquet: High-performance binary format
         load_sql = "COPY " + tspec.name + " FROM '" + file_path.string() +
                    "' (FORMAT PARQUET)";
-      } else if (fmt == "csv" || fmt == "tbl") {
-        // Both CSV and TBL use COPY. TBL is just CSV with a pipe delimiter.
+      } else if (fmt == "csv") {
+        // Standard CSV: Comma delimited, likely has a header
+        load_sql = "COPY " + tspec.name + " FROM '" + file_path.string() +
+                   "' (FORMAT CSV, DELIMITER ',', HEADER TRUE)";
+      } else if (fmt == "tbl") {
+        // TPC-H TBL: Pipe delimited, no header, trailing pipe
         load_sql = "COPY " + tspec.name + " FROM '" + file_path.string() +
                    "' (FORMAT CSV, DELIMITER '|', HEADER FALSE)";
       } else if (fmt == "arrow" || fmt == "arrows" || fmt == "feather") {
-        // Arrow variants (including Feather/IPC) use the INSERT INTO +
-        // read_arrow pattern
+        // Arrow Ecosystem: Memory-mapped or streaming IPC
+        // (Ensure you ran 'con.Query("LOAD arrow;");' earlier)
         load_sql = "INSERT INTO " + tspec.name + " SELECT * FROM read_arrow('" +
                    file_path.string() + "')";
       }
