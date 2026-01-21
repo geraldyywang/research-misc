@@ -23,6 +23,7 @@ add_library(bench_logic STATIC
 
 target_include_directories(bench_logic PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    external/duckdb/src/include
 )
 
 target_link_libraries(bench_logic PUBLIC 
