@@ -1,0 +1,36 @@
+[tables.region]
+tbl_path = "/data/tpch/sf0.01/region.tbl"
+
+[[tables.region.columns]]
+name = "r_regionkey"
+type = "int32"
+
+[[tables.region.columns]]
+name = "r_name"
+type = "string"
+
+[[tables.region.columns]]
+name = "r_comment"
+type = "string"
+
+
+[tables.lineitem]
+tbl_path = "/data/tpch/sf0.01/lineitem.tbl"
+
+[[tables.lineitem.columns]]
+name = "l_orderkey"
+type = "int64"
+
+[[tables.lineitem.columns]]
+name = "l_partkey"
+type = "int64"
+
+[[tables.lineitem.columns]]
+name = "l_quantity"
+type = "decimal128"
+precision = 15
+scale = 2
+
+[[tables.lineitem.columns]]
+name = "l_shipdate"
+type = "date32"
