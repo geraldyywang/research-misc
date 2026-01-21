@@ -24,7 +24,6 @@ int main() {
 
         std::cout << "Loading TPC-H extension..." << std::endl;
         // Run these separately!
-        MustQuery(con, "INSTALL tpch;");
         MustQuery(con, "LOAD tpch;");
         
         std::cout << "Generating data (SF 1)..." << std::endl;
