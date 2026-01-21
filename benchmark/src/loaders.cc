@@ -75,7 +75,7 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
       } else if (fmt == "arrow" || fmt == "arrows" || fmt == "feather") {
         // Arrow Ecosystem: Memory-mapped or streaming IPC
         // (Ensure you ran 'con.Query("LOAD arrow;");' earlier)
-        load_sql = "INSERT INTO " + tspec.name + " SELECT * FROM read_arrow('" +
+        load_sql = "INSERT INTO " + tspec.name + " SELECT * FROM scan_arrow('" +
                    file_path.string() + "')";
       }
 
