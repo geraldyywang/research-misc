@@ -38,7 +38,11 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
   duckdb::DuckDB db(nullptr);
   duckdb::Connection con(db);
 
-  con.Query("LOAD arrow;");
+  auto res {con.Query("LOAD arrow;")};
+  if (res->HasError()) {
+    std::cerr << "Warning: Could not load arrow extension: " << res->GetError()
+              << std::endl;
+  }
   con.Query("LOAD parquet;");
 
   const std::array<std::string, 5> formats{"parquet", "arrow", "arrows", "csv",
