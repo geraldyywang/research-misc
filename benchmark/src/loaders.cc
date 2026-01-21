@@ -38,6 +38,9 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
   duckdb::DuckDB db(nullptr);
   duckdb::Connection con(db);
 
+  con.Query("LOAD arrow;");
+  con.Query("LOAD parquet;");
+
   const std::array<std::string, 5> formats{"parquet", "arrow", "arrows", "csv",
                                            "tbl"};
 
@@ -54,17 +57,21 @@ void RunBenchmark(const std::vector<TableSpec>& tables,
     create_sql += ");";
 
     for (const auto& fmt : formats) {
-      fs::path file_path{tspec.name + "." + fmt};
+      fs::path file_path{"tpch_data/" + tspec.name + "." + fmt};
 
       std::string load_sql;
       if (fmt == "parquet") {
+        // Standard Parquet loading
         load_sql = "COPY " + tspec.name + " FROM '" + file_path.string() +
                    "' (FORMAT PARQUET)";
-      } else if (fmt == "csv") {
+      } else if (fmt == "csv" || fmt == "tbl") {
+        // Both CSV and TBL use COPY. TBL is just CSV with a pipe delimiter.
         load_sql = "COPY " + tspec.name + " FROM '" + file_path.string() +
-                   "' (FORMAT CSV, DELIMITER '|')";
-      } else {
-        load_sql = "INSERT INTO " + tspec.name + " SELECT * FROM read_ipc('" +
+                   "' (FORMAT CSV, DELIMITER '|', HEADER FALSE)";
+      } else if (fmt == "arrow" || fmt == "arrows" || fmt == "feather") {
+        // Arrow variants (including Feather/IPC) use the INSERT INTO +
+        // read_arrow pattern
+        load_sql = "INSERT INTO " + tspec.name + " SELECT * FROM read_arrow('" +
                    file_path.string() + "')";
       }
 
