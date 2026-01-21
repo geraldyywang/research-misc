@@ -20,6 +20,11 @@ add_library(bench_logic STATIC
     src/converters.cc 
     src/loaders.cc
 )
+
+target_include_directories(bench_logic PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 target_link_libraries(bench_logic PUBLIC 
     arrow_static 
     parquet_static 
