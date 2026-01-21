@@ -11,14 +11,14 @@ int main() {
 
     auto cwd {fs::current_path()};
 
-    auto table_specs {create_tables(cwd / "benchmark_config.toml")};
+    auto table_specs {create_tables(cwd / "tpch_data" / "benchmark_config.toml")};
     for (const auto& table_spec : table_specs) {
         auto batch {build_record_batch(table_spec)};
 
-        BatchToParquet(batch, cwd / (table_spec.name + ".parquet"));
-        BatchToArrow(batch, cwd / (table_spec.name + ".arrow"));
-        BatchToArrows(batch, cwd / (table_spec.name + ".arrows"));
-        BatchToCSV(batch, cwd / (table_spec.name + ".csv"));
+        BatchToParquet(batch, cwd / "tpch_data" / (table_spec.name + ".parquet"));
+        BatchToArrow(batch, cwd / "tpch_data" / (table_spec.name + ".arrow"));
+        BatchToArrows(batch, cwd / "tpch_data" / (table_spec.name + ".arrows"));
+        BatchToCSV(batch, cwd / "tpch_data" / (table_spec.name + ".csv"));
     }
     
     RunBenchmark(table_specs, cwd / "results.csv");
