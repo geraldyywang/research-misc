@@ -11,6 +11,7 @@ set(ENABLE_EXTENSION_AUTOINSTALL ON CACHE INTERNAL "")
 
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
+find_package(CURL REQUIRED)
 
 add_subdirectory(external/tomlplusplus)
 add_subdirectory(external/duckdb)
@@ -23,6 +24,7 @@ target_link_libraries(bench_logic PUBLIC
     arrow_static 
     parquet_static 
     tomlplusplus::tomlplusplus
+    CURL::libcurl
 )
 
 add_executable(benchmark src/main.cc)
