@@ -7,29 +7,40 @@
 
 namespace fs = std::filesystem;
 
+void MustQuery(duckdb::Connection &con, std::string sql) {
+    auto result = con.Query(sql);
+    if (result->HasError()) {
+        throw std::runtime_error("Query Failed: " + sql + "\nError: " + result->GetError());
+    }
+}
+
 int main() {
     try {
         std::cout << "Generating TPC-H data (SF 1)..." << std::endl;
         
-        // 1. Setup DuckDB Connection
-        duckdb::DuckDB db(nullptr); // in-memory
+        fs::create_directories("tpch_data");
+        duckdb::DuckDB db(nullptr); 
         duckdb::Connection con(db);
 
-        // 2. Install and Load TPC-H
-        con.Query("INSTALL tpch; LOAD tpch;");
-        con.Query("CALL dbgen(sf=1);");
+        std::cout << "Loading TPC-H extension..." << std::endl;
+        // Run these separately!
+        MustQuery(con, "INSTALL tpch;");
+        MustQuery(con, "LOAD tpch;");
+        
+        std::cout << "Generating data (SF 1)..." << std::endl;
+        MustQuery(con, "CALL dbgen(sf=1);");
 
         std::vector<std::string> tables = {
             "lineitem", "orders", "customer", "part", "partsupp", "supplier", "nation", "region"
         };
 
-        fs::create_directories("tpch_data");
-
         // 3. Export Tables to .tbl (CSV format)
         for (const auto& table : tables) {
+            std::cout << "Exporting " << table << "..." << std::endl;
             std::string path = "tpch_data/" + table + ".tbl";
+            // Using CSV format with specific delimiter to mimic .tbl files
             std::string sql = "COPY " + table + " TO '" + path + "' (DELIMITER '|', HEADER FALSE);";
-            con.Query(sql);
+            MustQuery(con, sql);
         }
 
         std::cout << "Generating benchmark_config.toml..." << std::endl;
@@ -75,12 +86,11 @@ int main() {
         out << toml_content;
         out.close();
 
-        std::cout << "Done!" << std::endl;
+        std::cout << "Success! Files created in tpch_data/" << std::endl;
 
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << "CRITICAL ERROR: " << e.what() << std::endl;
         return 1;
     }
-
     return 0;
 }
