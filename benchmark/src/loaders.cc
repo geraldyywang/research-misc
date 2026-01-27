@@ -63,7 +63,7 @@ std::string BuildLoadSql(const TableSpec& Table, const std::string& Format, cons
            "' (FORMAT CSV, DELIMITER '|', HEADER FALSE)";
   }
   if (Format == "arrow" || Format == "arrows" || Format == "feather") {
-    return "INSERT INTO " + Table.name + " SELECT * FROM scan_arrow_ipc('" + pathStr + "')";
+    return "COPY " + Table.name + " FROM '" + pathStr + "' (FORMAT ARROW)";
   }
 
   return {};
