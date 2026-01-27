@@ -1,9 +1,15 @@
 #include "loaders.h"
 
-#include <duckdb.hpp>
+#include <chrono>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <string>
 #include <unordered_map>
+#include <vector>
+
+#include <duckdb.hpp>
 
 namespace rmisc::benchmark {
 
@@ -11,8 +17,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-std::string ToDuckDBType(const ColumnSpec& col) {
-  switch (col.type) {
+std::string ToDuckDBType(const ColumnSpec& Col) {
+  switch (Col.type) {
     case ColumnType::Int32:
       return "INTEGER";
     case ColumnType::Int64:
@@ -24,107 +30,118 @@ std::string ToDuckDBType(const ColumnSpec& col) {
     case ColumnType::Date32:
       return "DATE";
     case ColumnType::Decimal128:
-      return "DECIMAL(" + std::to_string(col.precision) + "," +
-             std::to_string(col.scale) + ")";
+      return "DECIMAL(" + std::to_string(Col.precision) + "," + std::to_string(Col.scale) + ")";
     default:
       return "VARCHAR";
   }
 }
 
+std::string BuildCreateTableSql(const TableSpec& Table) {
+  std::string createSql{"CREATE TABLE " + Table.name + " ("};
+  for (size_t i{0}; i < Table.columns.size(); ++i) {
+    createSql += Table.columns[i].name + " " + ToDuckDBType(Table.columns[i]);
+    if (i + 1 < Table.columns.size()) {
+      createSql += ", ";
+    }
+  }
+  createSql += ");";
+  return createSql;
+}
+
+std::string BuildLoadSql(const TableSpec& Table, const std::string& Format, const fs::path& FilePath) {
+  const std::string pathStr{FilePath.string()};
+
+  if (Format == "parquet") {
+    return "COPY " + Table.name + " FROM '" + pathStr + "' (FORMAT PARQUET)";
+  }
+  if (Format == "csv") {
+    return "COPY " + Table.name + " FROM '" + pathStr +
+           "' (FORMAT CSV, DELIMITER ',', HEADER TRUE)";
+  }
+  if (Format == "tbl") {
+    return "COPY " + Table.name + " FROM '" + pathStr +
+           "' (FORMAT CSV, DELIMITER '|', HEADER FALSE)";
+  }
+  if (Format == "arrow" || Format == "arrows" || Format == "feather") {
+    return "INSERT INTO " + Table.name + " SELECT * FROM scan_arrow_ipc('" + pathStr + "')";
+  }
+
+  return {};
+}
+
 }  // namespace
 
-void RunBenchmark(const std::vector<TableSpec>& tables,
-                  const fs::path& summary_csv, int n_trials) {
-  duckdb::DuckDB db(nullptr);
-  duckdb::Connection con(db);
+void RunBenchmark(const std::vector<TableSpec>& Tables, const fs::path& SummaryCsv, int NTrials) {
+  duckdb::DuckDB Db{nullptr};
+  duckdb::Connection Con{Db};
 
-  auto res{con.Query("LOAD arrow;")};
-  if (res->HasError()) {
-    std::cerr << "Warning: Could not load arrow extension: " << res->GetError()
-              << std::endl;
+  auto arrowRes{Con.Query("LOAD arrow;")};
+  if (arrowRes->HasError()) {
+    std::cerr << "Warning: Could not load arrow extension: " << arrowRes->GetError() << std::endl;
   }
-  con.Query("LOAD parquet;");
 
-  const std::array<std::string, 5> formats{"parquet", "arrow", "arrows", "csv",
-                                           "tbl"};
+  Con.Query("LOAD parquet;");
 
-  std::unordered_map<std::string, std::unordered_map<std::string, double>>
-      time_results;
-  std::unordered_map<std::string, std::unordered_map<std::string, int>>
-      num_data_points;
+  const std::array<std::string, 5> Formats{
+      "parquet",
+      "arrow",
+      "arrows",
+      "csv",
+      "tbl",
+  };
 
-  for (const auto& tspec : tables) {
-    std::string create_sql{"CREATE TABLE " + tspec.name + " ("};
-    for (size_t i = 0; i < tspec.columns.size(); ++i) {
-      create_sql +=
-          tspec.columns[i].name + " " + ToDuckDBType(tspec.columns[i]);
-      if (i < tspec.columns.size() - 1) create_sql += ", ";
-    }
-    create_sql += ");";
+  std::unordered_map<std::string, std::unordered_map<std::string, double>> timeResults;
+  std::unordered_map<std::string, std::unordered_map<std::string, int>> numDataPoints;
 
-    for (const auto& fmt : formats) {
-      fs::path file_path{"tpch_data/" + tspec.name + "." + fmt};
+  for (const auto& Table : Tables) {
+    const std::string createSql{BuildCreateTableSql(Table)};
 
-      std::string load_sql;
-      if (fmt == "parquet") {
-        // Parquet: High-performance binary format
-        load_sql = "COPY " + tspec.name + " FROM '" + file_path.string() +
-                   "' (FORMAT PARQUET)";
-      } else if (fmt == "csv") {
-        // Standard CSV: Comma delimited, likely has a header
-        load_sql = "COPY " + tspec.name + " FROM '" + file_path.string() +
-                   "' (FORMAT CSV, DELIMITER ',', HEADER TRUE)";
-      } else if (fmt == "tbl") {
-        // TPC-H TBL: Pipe delimited, no header, trailing pipe
-        load_sql = "COPY " + tspec.name + " FROM '" + file_path.string() +
-                   "' (FORMAT CSV, DELIMITER '|', HEADER FALSE)";
-      } else if (fmt == "arrow" || fmt == "arrows" || fmt == "feather") {
-        // Arrow Ecosystem: Memory-mapped or streaming IPC
-        // (Ensure you ran 'con.Query("LOAD arrow;");' earlier)
-        load_sql = "INSERT INTO " + tspec.name +
-                   " SELECT * FROM scan_arrow_ipc('" + file_path.string() +
-                   "')";
+    for (const auto& Format : Formats) {
+      const fs::path filePath{"tpch_data/" + Table.name + "." + Format};
+      const std::string loadSql{BuildLoadSql(Table, Format, filePath)};
+      if (loadSql.empty()) {
+        continue;
       }
 
-      for (int t{}; t < n_trials; ++t) {
+      for (int trial{0}; trial < NTrials; ++trial) {
         try {
-          con.Query("DROP TABLE IF EXISTS " + tspec.name);
-          con.Query(create_sql);
+          Con.Query("DROP TABLE IF EXISTS " + Table.name);
+          Con.Query(createSql);
 
-          auto start{std::chrono::high_resolution_clock::now()};
+          const auto start{std::chrono::high_resolution_clock::now()};
 
-          auto res{con.Query(load_sql)};
-          if (res->HasError()) {
-            throw std::runtime_error(res->GetError());
+          auto loadRes{Con.Query(loadSql)};
+          if (loadRes->HasError()) {
+            throw std::runtime_error(loadRes->GetError());
           }
 
-          auto end{std::chrono::high_resolution_clock::now()};
-          std::chrono::duration<double, std::milli> elapsed{end - start};
+          const auto end{std::chrono::high_resolution_clock::now()};
+          const std::chrono::duration<double, std::milli> elapsed{end - start};
 
-          auto avg_time{time_results[tspec.name][fmt]};
-          if (avg_time >= 0) {
-            time_results[tspec.name][fmt] =
-                (avg_time * num_data_points[tspec.name][fmt] +
-                 elapsed.count()) /
-                (num_data_points[tspec.name][fmt] + 1);
-            ++num_data_points[tspec.name][fmt];
+          const double prevAvg{timeResults[Table.name][Format]};
+          const int prevCount{numDataPoints[Table.name][Format]};
+
+          if (prevAvg >= 0.0) {
+            timeResults[Table.name][Format] =
+                (prevAvg * prevCount + elapsed.count()) / (prevCount + 1);
+            numDataPoints[Table.name][Format] = prevCount + 1;
           }
-        } catch (const std::exception& e) {
-          std::cerr << "Error benchmarking " << fmt << " for " << tspec.name
-                    << ": " << e.what() << std::endl;
-          time_results[tspec.name][fmt] = -1.0;
+        } catch (const std::exception& E) {
+          std::cerr << "Error benchmarking " << Format << " for " << Table.name << ": " << E.what()
+                    << std::endl;
+          timeResults[Table.name][Format] = -1.0;
         }
       }
     }
   }
 
-  std::ofstream out(summary_csv);
+  std::ofstream out{SummaryCsv};
   out << "table_name,parquet,arrow,arrows,csv,tbl\n";
-  for (const auto& tspec : tables) {
-    out << tspec.name;
-    for (const auto& f : formats) {
-      out << "," << std::fixed << std::setprecision(4)
-          << time_results[tspec.name][f];
+
+  for (const auto& Table : Tables) {
+    out << Table.name;
+    for (const auto& Format : Formats) {
+      out << "," << std::fixed << std::setprecision(4) << timeResults[Table.name][Format];
     }
     out << "\n";
   }

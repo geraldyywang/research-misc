@@ -6,9 +6,16 @@
 #include <arrow/util/logging.h>
 #include <parquet/arrow/writer.h>  // For Parquet
 
+#include <cinttypes>
+#include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include <toml++/toml.hpp>
 
 namespace rmisc::benchmark {
@@ -17,17 +24,30 @@ namespace fs = std::filesystem;
 
 namespace {
 
-ColumnType ParseColumnType(const std::string& s) {
-  if (s == "int32") return ColumnType::Int32;
-  if (s == "int64") return ColumnType::Int64;
-  if (s == "string") return ColumnType::String;
-  if (s == "date32") return ColumnType::Date32;
-  if (s == "decimal128") return ColumnType::Decimal128;
-  throw std::runtime_error("Unknown column type: " + s);
+ColumnType ParseColumnType(const std::string& S) {
+  if (S == "int32") {
+    return ColumnType::Int32;
+  }
+  if (S == "int64") {
+    return ColumnType::Int64;
+  }
+  if (S == "double") {
+    return ColumnType::Double;
+  }
+  if (S == "string") {
+    return ColumnType::String;
+  }
+  if (S == "date32") {
+    return ColumnType::Date32;
+  }
+  if (S == "decimal128") {
+    return ColumnType::Decimal128;
+  }
+  throw std::runtime_error("Unknown column type: " + S);
 }
 
-std::shared_ptr<arrow::DataType> ArrowTypeFromCol(const ColumnSpec& col) {
-  switch (col.type) {
+std::shared_ptr<arrow::DataType> ArrowTypeFromCol(const ColumnSpec& Col) {
+  switch (Col.type) {
     case ColumnType::Int32:
       return arrow::int32();
     case ColumnType::Int64:
@@ -39,14 +59,14 @@ std::shared_ptr<arrow::DataType> ArrowTypeFromCol(const ColumnSpec& col) {
     case ColumnType::Date32:
       return arrow::date32();
     case ColumnType::Decimal128:
-      return arrow::decimal128(col.precision, col.scale);
+      return arrow::decimal128(Col.precision, Col.scale);
     default:
       throw std::runtime_error("Unknown column type");
   }
 }
 
-std::unique_ptr<arrow::ArrayBuilder> MakeBuilder(const ColumnSpec& col) {
-  switch (col.type) {
+std::unique_ptr<arrow::ArrayBuilder> MakeBuilder(const ColumnSpec& Col) {
+  switch (Col.type) {
     case ColumnType::Int32:
       return std::make_unique<arrow::Int32Builder>();
     case ColumnType::Int64:
@@ -58,28 +78,26 @@ std::unique_ptr<arrow::ArrayBuilder> MakeBuilder(const ColumnSpec& col) {
     case ColumnType::Date32:
       return std::make_unique<arrow::Date32Builder>();
     case ColumnType::Decimal128:
-      return std::make_unique<arrow::Decimal128Builder>(
-          arrow::decimal128(col.precision, col.scale));
+      return std::make_unique<arrow::Decimal128Builder>(arrow::decimal128(Col.precision, Col.scale));
     default:
       throw std::runtime_error("Unsupported column type");
   }
 }
 
-std::shared_ptr<arrow::Schema> MakeArrowSchema(const TableSpec& table) {
+std::shared_ptr<arrow::Schema> MakeArrowSchema(const TableSpec& Table) {
   std::vector<std::shared_ptr<arrow::Field>> fields;
-  fields.reserve(table.columns.size());
+  fields.reserve(Table.columns.size());
 
-  for (const auto& col : table.columns) {
-    fields.push_back(
-        std::make_shared<arrow::Field>(col.name, ArrowTypeFromCol(col), false));
+  for (const auto& Col : Table.columns) {
+    fields.push_back(std::make_shared<arrow::Field>(Col.name, ArrowTypeFromCol(Col), false));
   }
 
   return std::make_shared<arrow::Schema>(fields);
 }
 
-std::vector<std::string> SplitPipe(const std::string& line) {
+std::vector<std::string> SplitPipe(const std::string& Line) {
   std::vector<std::string> fields;
-  std::stringstream ss(line);
+  std::stringstream ss{Line};
   std::string item;
 
   while (std::getline(ss, item, '|')) {
@@ -89,72 +107,88 @@ std::vector<std::string> SplitPipe(const std::string& line) {
   if (!fields.empty() && fields.back().empty()) {
     fields.pop_back();
   }
+
   return fields;
 }
 
-// HELPER: Convert "YYYY-MM-DD" string to days since Epoch (1970-01-01)
-// We use a purely arithmetic approach to avoid Timezone issues with std::mktime
-int32_t ParseDateToDays(const std::string& date_str) {
-  int y, m, d;
-  if (sscanf(date_str.c_str(), "%d-%d-%d", &y, &m, &d) != 3) {
-    throw std::runtime_error("Invalid date format: " + date_str);
+//
+// Convert "YYYY-MM-DD" to days since epoch (1970-01-01).
+// Uses a purely arithmetic approach to avoid timezone issues with std::mktime.
+//
+//
+int32_t ParseDateToDays(const std::string& DateStr) {
+  int y{};
+  int m{};
+  int d{};
+  if (std::sscanf(DateStr.c_str(), "%d-%d-%d", &y, &m, &d) != 3) {
+    throw std::runtime_error("Invalid date format: " + DateStr);
   }
 
-  // Adjust months for the algorithm (Jan/Feb become 13/14 of previous year)
+  //
+  // Adjust months for the algorithm (Jan/Feb become 13/14 of previous year).
+  //
+  //
+
   if (m < 3) {
     m += 12;
     y -= 1;
   }
 
-  // Calculate days (valid for Gregorian calendar)
-  int32_t days{365 * y + y / 4 - y / 100 + y / 400 + (153 * m + 8) / 5 + d - 1};
+  //
+  // Calculate days (valid for Gregorian calendar).
+  //
+  //
 
-  // Subtract days for 1970-01-01 (which is 719468 in this calculation) to get
-  // Epoch
+  const int32_t days{static_cast<int32_t>(365 * y + y / 4 - y / 100 + y / 400 + (153 * m + 8) / 5 +
+                                         d - 1)};
+
+  //
+  // Subtract days for 1970-01-01 (719468 in this calculation) to get epoch days.
+  //
+  //
+
   return days - 719468;
 }
 
-arrow::Status AppendFieldToBuilder(arrow::ArrayBuilder* b,
-                                   const ColumnSpec& cspec,
-                                   const std::string& field) {
-  if (field.empty() || field == "\\N") {
-    return b->AppendNull();
+arrow::Status AppendFieldToBuilder(arrow::ArrayBuilder* Builder, const ColumnSpec& ColSpec,
+                                   const std::string& Field) {
+  if (Field.empty() || Field == "\\N") {
+    return Builder->AppendNull();
   }
 
-  switch (cspec.type) {
+  switch (ColSpec.type) {
     case ColumnType::Int32:
-      return static_cast<arrow::Int32Builder*>(b)->Append(std::stoi(field));
+      return static_cast<arrow::Int32Builder*>(Builder)->Append(std::stoi(Field));
 
     case ColumnType::Int64:
-      return static_cast<arrow::Int64Builder*>(b)->Append(std::stoll(field));
+      return static_cast<arrow::Int64Builder*>(Builder)->Append(std::stoll(Field));
 
     case ColumnType::Double:
-      return static_cast<arrow::DoubleBuilder*>(b)->Append(std::stod(field));
+      return static_cast<arrow::DoubleBuilder*>(Builder)->Append(std::stod(Field));
 
     case ColumnType::String:
-      return static_cast<arrow::StringBuilder*>(b)->Append(field);
+      return static_cast<arrow::StringBuilder*>(Builder)->Append(Field);
 
     case ColumnType::Date32:
       try {
-        return static_cast<arrow::Date32Builder*>(b)->Append(
-            ParseDateToDays(field));
+        return static_cast<arrow::Date32Builder*>(Builder)->Append(ParseDateToDays(Field));
       } catch (...) {
-        return arrow::Status::Invalid("Date parsing failed for: " + field);
+        return arrow::Status::Invalid("Date parsing failed for: " + Field);
       }
 
     case ColumnType::Decimal128: {
       arrow::Decimal128 val{};
-      int32_t precision{}, scale{};
-      auto st{arrow::Decimal128::FromString(field, &val, &precision, &scale)};
+      int32_t parsedPrecision{};
+      int32_t parsedScale{};
+      auto st{arrow::Decimal128::FromString(Field, &val, &parsedPrecision, &parsedScale)};
 
-      auto rescaled_val{val.Rescale(scale, cspec.scale)};
-      if (!rescaled_val.ok()) {
-        return arrow::Status::Invalid("Could not rescale '" + field +
-                                      "' to scale " +
-                                      std::to_string(cspec.scale));
+      auto rescaledVal{val.Rescale(parsedScale, ColSpec.scale)};
+      if (!rescaledVal.ok()) {
+        return arrow::Status::Invalid("Could not rescale '" + Field + "' to scale " +
+                                      std::to_string(ColSpec.scale));
       }
 
-      return static_cast<arrow::Decimal128Builder*>(b)->Append(val);
+      return static_cast<arrow::Decimal128Builder*>(Builder)->Append(val);
     }
 
     default:
@@ -164,150 +198,147 @@ arrow::Status AppendFieldToBuilder(arrow::ArrayBuilder* b,
 
 }  // namespace
 
-std::vector<TableSpec> create_tables(const fs::path& config_path) {
-  toml::table root{toml::parse_file(config_path.string())};
+std::vector<TableSpec> CreateTables(const fs::path& ConfigPath) {
+  toml::table root{toml::parse_file(ConfigPath.string())};
   auto* tables{root["tables"].as_table()};
-  if (!tables) throw std::runtime_error("Missing [tables]");
+  if (!tables) {
+    throw std::runtime_error("Missing [tables]");
+  }
 
-  std::vector<TableSpec> table_specs;
+  std::vector<TableSpec> tableSpecs;
 
-  for (auto&& [table_name, table_node] : *tables) {
-    auto* table{table_node.as_table()};
-    if (!table) continue;
+  for (auto&& [tableName, tableNode] : *tables) {
+    auto* table{tableNode.as_table()};
+    if (!table) {
+      continue;
+    }
 
-    TableSpec table_spec;
-    table_spec.name = std::string(table_name.str());
-    table_spec.tbl_path = table->at("tbl_path").value<std::string>().value();
+    TableSpec tableSpec{};
+    tableSpec.name = std::string(tableName.str());
+    tableSpec.tblPath = table->at("tblPath").value<std::string>().value();
 
     auto* columns{table->at("columns").as_array()};
     if (!columns) {
-      throw std::runtime_error("Missing columns for table: " + table_spec.name);
+      throw std::runtime_error("Missing columns for table: " + tableSpec.name);
     }
 
-    for (auto&& column_node : *columns) {
-      auto* column{column_node.as_table()};
-      if (!column) continue;
-
-      ColumnSpec col_spec;
-      col_spec.name = column->at("name").value<std::string>().value();
-      col_spec.type =
-          ParseColumnType(column->at("type").value<std::string>().value());
-
-      if (col_spec.type == ColumnType::Decimal128) {
-        col_spec.precision = column->at("precision").value<int>().value();
-        col_spec.scale = column->at("scale").value<int>().value();
+    for (auto&& columnNode : *columns) {
+      auto* column{columnNode.as_table()};
+      if (!column) {
+        continue;
       }
 
-      table_spec.columns.push_back(std::move(col_spec));
+      ColumnSpec colSpec{};
+      colSpec.name = column->at("name").value<std::string>().value();
+      colSpec.type = ParseColumnType(column->at("type").value<std::string>().value());
+
+      if (colSpec.type == ColumnType::Decimal128) {
+        colSpec.precision = column->at("precision").value<int>().value();
+        colSpec.scale = column->at("scale").value<int>().value();
+      }
+
+      tableSpec.columns.push_back(std::move(colSpec));
     }
 
-    table_specs.push_back(std::move(table_spec));
+    tableSpecs.push_back(std::move(tableSpec));
   }
 
-  return table_specs;
+  return tableSpecs;
 }
 
-std::shared_ptr<arrow::RecordBatch> build_record_batch(const TableSpec& tspec) {
+std::shared_ptr<arrow::RecordBatch> BuildRecordBatch(const TableSpec& TableSpec) {
   std::vector<std::unique_ptr<arrow::ArrayBuilder>> builders;
-  builders.reserve(tspec.columns.size());
-  for (const auto& col : tspec.columns) {
-    builders.push_back(MakeBuilder(col));
+  builders.reserve(TableSpec.columns.size());
+
+  for (const auto& Col : TableSpec.columns) {
+    builders.push_back(MakeBuilder(Col));
   }
 
-  std::ifstream in(tspec.tbl_path);
+  std::ifstream in{TableSpec.tblPath};
   if (!in) {
-    throw std::runtime_error("Failed to open tbl file: " +
-                             tspec.tbl_path.string());
+    throw std::runtime_error("Failed to open tbl file: " + TableSpec.tblPath.string());
   }
 
   std::string line;
-  int64_t row_count{};
+  int64_t rowCount{0};
 
   while (std::getline(in, line)) {
     if (line.empty()) {
       continue;
     }
 
-    if (line.back() == '\r') {
+    if (!line.empty() && line.back() == '\r') {
       line.pop_back();
     }
 
-    auto fields{SplitPipe(line)};
-    if (fields.size() != tspec.columns.size()) {
-      throw std::runtime_error("Field count mismatch in " +
-                               tspec.tbl_path.string() + ": got " +
+    const auto fields{SplitPipe(line)};
+    if (fields.size() != TableSpec.columns.size()) {
+      throw std::runtime_error("Field count mismatch in " + TableSpec.tblPath.string() + ": got " +
                                std::to_string(fields.size()) + ", expected " +
-                               std::to_string(tspec.columns.size()));
+                               std::to_string(TableSpec.columns.size()));
     }
 
-    for (size_t i{}; i < tspec.columns.size(); ++i) {
-      auto st{
-          AppendFieldToBuilder(builders[i].get(), tspec.columns[i], fields[i])};
+    for (size_t i{0}; i < TableSpec.columns.size(); ++i) {
+      const auto st{AppendFieldToBuilder(builders[i].get(), TableSpec.columns[i], fields[i])};
       if (!st.ok()) {
-        throw std::runtime_error("Append failed for column " +
-                                 tspec.columns[i].name + ": " + st.ToString());
+        throw std::runtime_error("Append failed for column " + TableSpec.columns[i].name + ": " +
+                                 st.ToString());
       }
     }
 
-    ++row_count;
+    ++rowCount;
   }
 
   std::vector<std::shared_ptr<arrow::Array>> arrays;
   arrays.reserve(builders.size());
 
-  for (auto& b : builders) {
+  for (auto& Builder : builders) {
     std::shared_ptr<arrow::Array> arr;
-    auto st{b->Finish(&arr)};
+    auto st{Builder->Finish(&arr)};
     if (!st.ok()) {
       throw std::runtime_error("Finish() failed: " + st.ToString());
     }
     arrays.push_back(std::move(arr));
   }
 
-  auto result{
-      arrow::RecordBatch::Make(MakeArrowSchema(tspec), row_count, arrays)};
-  return result;
+  return arrow::RecordBatch::Make(MakeArrowSchema(TableSpec), rowCount, arrays);
 }
 
-void BatchToParquet(const std::shared_ptr<arrow::RecordBatch> batch,
-                    const fs::path& out_path) {
-  auto table{arrow::Table::FromRecordBatches({batch}).ValueOrDie()};
-  std::shared_ptr<arrow::io::FileOutputStream> outfile;
-  outfile = arrow::io::FileOutputStream::Open(out_path.string()).ValueOrDie();
+void BatchToParquet(const std::shared_ptr<arrow::RecordBatch> Batch, const fs::path& OutPath) {
+  auto table{arrow::Table::FromRecordBatches({Batch}).ValueOrDie()};
+  auto outfile{arrow::io::FileOutputStream::Open(OutPath.string()).ValueOrDie()};
 
-  PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
-      *table, arrow::default_memory_pool(), outfile, batch->num_rows()));
+  PARQUET_THROW_NOT_OK(
+      parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), outfile, Batch->num_rows()));
 }
 
-void BatchToArrow(const std::shared_ptr<arrow::RecordBatch> batch,
-                  const fs::path& out_path) {
-  auto table{arrow::Table::FromRecordBatches({batch}).ValueOrDie()};
-  auto outfile{
-      arrow::io::FileOutputStream::Open(out_path.string()).ValueOrDie()};
+void BatchToArrow(const std::shared_ptr<arrow::RecordBatch> Batch, const fs::path& OutPath) {
+  auto table{arrow::Table::FromRecordBatches({Batch}).ValueOrDie()};
+  auto outfile{arrow::io::FileOutputStream::Open(OutPath.string()).ValueOrDie()};
 
-  auto status{arrow::ipc::MakeFileWriter(outfile, batch->schema())};
-  auto writer{status.ValueOrDie()};
+  auto writerResult{arrow::ipc::MakeFileWriter(outfile, Batch->schema())};
+  auto writer{writerResult.ValueOrDie()};
+
   ARROW_CHECK_OK(writer->WriteTable(*table));
   ARROW_CHECK_OK(writer->Close());
 }
 
-void BatchToArrows(const std::shared_ptr<arrow::RecordBatch> batch,
-                   const fs::path& out_path) {
-  // IPC Stream Format
-  auto outfile{
-      arrow::io::FileOutputStream::Open(out_path.string()).ValueOrDie()};
-  auto writer{
-      arrow::ipc::MakeStreamWriter(outfile, batch->schema()).ValueOrDie()};
-  ARROW_CHECK_OK(writer->WriteRecordBatch(*batch));
+void BatchToArrows(const std::shared_ptr<arrow::RecordBatch> Batch, const fs::path& OutPath) {
+  //
+  // IPC stream format.
+  //
+  //
+
+  auto outfile{arrow::io::FileOutputStream::Open(OutPath.string()).ValueOrDie()};
+  auto writer{arrow::ipc::MakeStreamWriter(outfile, Batch->schema()).ValueOrDie()};
+
+  ARROW_CHECK_OK(writer->WriteRecordBatch(*Batch));
   ARROW_CHECK_OK(writer->Close());
 }
 
-void BatchToCSV(const std::shared_ptr<arrow::RecordBatch> batch,
-                const fs::path& out_path) {
-  auto outfile{
-      arrow::io::FileOutputStream::Open(out_path.string()).ValueOrDie()};
-  auto status{arrow::csv::WriteCSV(*batch, arrow::csv::WriteOptions::Defaults(),
-                                   outfile.get())};
+void BatchToCSV(const std::shared_ptr<arrow::RecordBatch> Batch, const fs::path& OutPath) {
+  auto outfile{arrow::io::FileOutputStream::Open(OutPath.string()).ValueOrDie()};
+  auto status{arrow::csv::WriteCSV(*Batch, arrow::csv::WriteOptions::Defaults(), outfile.get())};
   ARROW_CHECK_OK(status);
 }
 

@@ -1,11 +1,12 @@
 #ifndef RESEARCH_MISC__BENCHMARK_CONVERTERS_H_
 #define RESEARCH_MISC__BENCHMARK_CONVERTERS_H_
 
-#include <arrow/api.h>
-
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
+
+#include <arrow/api.h>
 
 namespace rmisc::benchmark {
 
@@ -16,35 +17,32 @@ struct ColumnSpec {
   ColumnType type;
 
   //
-  // Used for Decimal128 type
+  // Used for Decimal128 type.
   //
   //
+
   int precision{};
   int scale{};
 };
 
 struct TableSpec {
   std::string name;
-  std::filesystem::path tbl_path;
+  std::filesystem::path tblPath;
   std::vector<ColumnSpec> columns;
 };
 
-std::vector<TableSpec> create_tables(const std::filesystem::path& config_path);
+std::vector<TableSpec> CreateTables(const std::filesystem::path& ConfigPath);
 
-std::shared_ptr<arrow::RecordBatch> build_record_batch(const TableSpec& tspec);
+std::shared_ptr<arrow::RecordBatch> BuildRecordBatch(const TableSpec& TableSpec);
 
-// Parquet
-void BatchToParquet(const std::shared_ptr<arrow::RecordBatch> batch, const std::filesystem::path& out_path);
+void BatchToParquet(const std::shared_ptr<arrow::RecordBatch> Batch, const std::filesystem::path& OutPath);
 
-// Arrow
-void BatchToArrow(const std::shared_ptr<arrow::RecordBatch>, const std::filesystem::path& out_path);
+void BatchToArrow(const std::shared_ptr<arrow::RecordBatch> Batch, const std::filesystem::path& OutPath);
 
-// Arrows
-void BatchToArrows(const std::shared_ptr<arrow::RecordBatch>, const std::filesystem::path& out_path);
+void BatchToArrows(const std::shared_ptr<arrow::RecordBatch> Batch, const std::filesystem::path& OutPath);
 
-// CSV
-void BatchToCSV(const std::shared_ptr<arrow::RecordBatch>, const std::filesystem::path& out_path);
+void BatchToCSV(const std::shared_ptr<arrow::RecordBatch> Batch, const std::filesystem::path& OutPath);
 
 }  // namespace rmisc::benchmark
 
-#endif
+#endif  // RESEARCH_MISC__BENCHMARK_CONVERTERS_H_

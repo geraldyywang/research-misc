@@ -8,21 +8,10 @@
 
 namespace rmisc::benchmark {
 
-void RunBenchmark(const std::vector<TableSpec>& tables,
-                  const std::filesystem::path& summary_csv, int n_trials = 0);
-
-// Parquet
-
-// Feather
-
-// Arrow
-
-// Arrows
-
-// CSV
-
-// tbl
+void RunBenchmark(const std::vector<TableSpec>& Tables,
+                  const std::filesystem::path& SummaryCsv,
+                  int NTrials = 0);
 
 }  // namespace rmisc::benchmark
 
-#endif
+#endif  // RESEARCH_MISC__BENCHMARK_LOADERS_H_
