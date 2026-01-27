@@ -63,7 +63,7 @@ std::string BuildLoadSql(const TableSpec& Table, const std::string& Format, cons
            "' (FORMAT CSV, DELIMITER '|', HEADER FALSE)";
   }
   if (Format == "arrow" || Format == "arrows" || Format == "feather") {
-    return "COPY " + Table.name + " FROM '" + pathStr + "' (FORMAT ARROW)";
+    return "INSERT INTO " + Table.name + " SELECT * FROM '" + pathStr + "'";;
   }
 
   return {};
@@ -75,10 +75,12 @@ void RunBenchmark(const std::vector<TableSpec>& Tables, const fs::path& SummaryC
   duckdb::DuckDB Db{nullptr};
   duckdb::Connection Con{Db};
 
-  auto arrowRes{Con.Query("LOAD arrow;")};
-  if (arrowRes->HasError()) {
-    std::cerr << "Warning: Could not load arrow extension: " << arrowRes->GetError() << std::endl;
-  }
+  // Db.LoadExtension<duckdb::ArrowExtension>();
+
+  // auto arrowRes{Con.Query("LOAD arrow;")};
+  // if (arrowRes->HasError()) {
+  //   std::cerr << "Warning: Could not load arrow extension: " << arrowRes->GetError() << std::endl;
+  // }
 
   Con.Query("LOAD parquet;");
 
