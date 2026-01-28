@@ -27,6 +27,7 @@ add_library(bench_logic STATIC
 )
 
 target_include_directories(nanoarrow_extension PRIVATE "${DUCKDB_INCLUDE_DIR}")
+target_include_directories(nanoarrow_loadable_extension PRIVATE "${DUCKDB_INCLUDE_DIR}")
 
 target_include_directories(bench_logic PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
