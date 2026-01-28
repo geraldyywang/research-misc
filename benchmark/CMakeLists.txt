@@ -30,7 +30,10 @@ add_library(bench_logic STATIC
 )
 
 target_include_directories(nanoarrow_extension PRIVATE "${DUCKDB_INCLUDE_DIR}")
-target_include_directories(nanoarrow_loadable_extension PRIVATE "${DUCKDB_INCLUDE_DIR}")
+target_include_directories(nanoarrow_loadable_extension PRIVATE 
+    "${DUCKDB_INCLUDE_DIR}" 
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb/third_party/zstd/include
+)
 set_target_properties(nanoarrow_loadable_extension PROPERTIES DUCKDB_SCRIPTS_DIR "${DUCKDB_SCRIPTS_DIR}")
 
 target_include_directories(bench_logic PUBLIC 
