@@ -14,6 +14,8 @@ set(BUILD_ARROW_EXTENSION ON CACHE INTERNAL "")
 set(DUCKDB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb/src/include")
 set(DUCKDB_SCRIPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb/scripts")
 
+add_definitions(-DDUCKDB_USE_REAL_ZSTD=1)
+
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
 find_package(CURL REQUIRED)
