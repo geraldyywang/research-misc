@@ -6,4 +6,4 @@
 	url = https://github.com/duckdb/duckdb.git
 [submodule "benchmark/external/duckdb-nanoarrow"]
 	path = benchmark/external/duckdb-nanoarrow
-	url = git@github.com:paleolimbot/duckdb-nanoarrow.git
+	url = https://github.com/paleolimbot/duckdb-nanoarrow.git
