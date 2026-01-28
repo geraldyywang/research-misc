@@ -11,6 +11,7 @@ set(ENABLE_EXTENSION_AUTOINSTALL ON CACHE INTERNAL "")
 set(BUILD_EXTENSIONS "tpch;parquet;icu" CACHE INTERNAL "")
 set(DUCKDB_EXTENSION_ARROW_LOAD_TYPE "STATIC" CACHE INTERNAL "")
 set(BUILD_ARROW_EXTENSION ON CACHE INTERNAL "")
+set(DUCKDB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb/src/include")
 
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
@@ -24,6 +25,8 @@ add_library(bench_logic STATIC
     src/converters.cc 
     src/loaders.cc
 )
+
+target_include_directories(nanoarrow_extension PRIVATE "${DUCKDB_INCLUDE_DIR}")
 
 target_include_directories(bench_logic PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
