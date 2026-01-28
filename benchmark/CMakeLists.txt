@@ -27,8 +27,8 @@ add_library(bench_logic STATIC
 
 target_include_directories(bench_logic PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    external/duckdb/src/include
-    external/duckdb-nanoarrow/src/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb/src/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb-nanoarrow/src/include
 )
 
 target_link_libraries(bench_logic PUBLIC 
