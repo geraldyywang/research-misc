@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <duckdb.hpp>
+#include <nanoarrow_extension.hpp>
 
 namespace rmisc::benchmark {
 
@@ -63,7 +64,7 @@ std::string BuildLoadSql(const TableSpec& Table, const std::string& Format, cons
            "' (FORMAT CSV, DELIMITER '|', HEADER FALSE)";
   }
   if (Format == "arrow" || Format == "arrows" || Format == "feather") {
-    return "INSERT INTO " + Table.name + " SELECT * FROM '" + pathStr + "'";;
+    return "INSERT INTO " + Table.name + " SELECT * FROM read_arrow('" + pathStr + "')";
   }
 
   return {};
@@ -75,7 +76,7 @@ void RunBenchmark(const std::vector<TableSpec>& Tables, const fs::path& SummaryC
   duckdb::DuckDB Db{nullptr};
   duckdb::Connection Con{Db};
 
-  // Db.LoadExtension<duckdb::ArrowExtension>();
+  Db.LoadStaticExtension<duckdb::NanoarrowExtension>();
 
   // auto arrowRes{Con.Query("LOAD arrow;")};
   // if (arrowRes->HasError()) {

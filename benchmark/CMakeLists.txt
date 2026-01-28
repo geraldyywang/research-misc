@@ -18,6 +18,7 @@ find_package(CURL REQUIRED)
 
 add_subdirectory(external/tomlplusplus)
 add_subdirectory(external/duckdb)
+add_subdirectory(external/duckdb-nanoarrow)
 
 add_library(bench_logic STATIC 
     src/converters.cc 
@@ -27,6 +28,7 @@ add_library(bench_logic STATIC
 target_include_directories(bench_logic PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     external/duckdb/src/include
+    external/duckdb-nanoarrow/src/include
 )
 
 target_link_libraries(bench_logic PUBLIC 
@@ -37,9 +39,9 @@ target_link_libraries(bench_logic PUBLIC
 )
 
 add_executable(benchmark src/main.cc)
-target_link_libraries(benchmark PRIVATE bench_logic duckdb)
+target_link_libraries(benchmark PRIVATE bench_logic duckdb nanoarrow_extension)
 
 add_executable(gen_data src/generate_data.cc)
-target_link_libraries(gen_data PRIVATE bench_logic duckdb)
+target_link_libraries(gen_data PRIVATE bench_logic duckdb nanoarrow_extension)
 
 message(STATUS "Arrow Version: ${Arrow_VERSION}")
