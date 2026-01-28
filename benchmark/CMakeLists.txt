@@ -12,6 +12,7 @@ set(BUILD_EXTENSIONS "tpch;parquet;icu" CACHE INTERNAL "")
 set(DUCKDB_EXTENSION_ARROW_LOAD_TYPE "STATIC" CACHE INTERNAL "")
 set(BUILD_ARROW_EXTENSION ON CACHE INTERNAL "")
 set(DUCKDB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb/src/include")
+set(DUCKDB_SCRIPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb/scripts")
 
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
@@ -28,6 +29,7 @@ add_library(bench_logic STATIC
 
 target_include_directories(nanoarrow_extension PRIVATE "${DUCKDB_INCLUDE_DIR}")
 target_include_directories(nanoarrow_loadable_extension PRIVATE "${DUCKDB_INCLUDE_DIR}")
+set_target_properties(nanoarrow_loadable_extension PROPERTIES DUCKDB_SCRIPTS_DIR "${DUCKDB_SCRIPTS_DIR}")
 
 target_include_directories(bench_logic PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
