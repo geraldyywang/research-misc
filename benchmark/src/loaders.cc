@@ -97,10 +97,11 @@ void RunBenchmark(const std::vector<TableSpec>& Tables, const fs::path& SummaryC
   std::unordered_map<std::string, std::unordered_map<std::string, int>> numDataPoints;
 
   for (const auto& Table : Tables) {
-    std::cout << "Evaluating " << Table.name << '\n';
+    std::cout << "Evaluating table " << Table.name << '\n';
     const std::string createSql{BuildCreateTableSql(Table)};
 
     for (const auto& Format : Formats) {
+      std::cout << "Evaluating format " << Format << '\n';
       const fs::path filePath{"tpch_data/" + Table.name + "." + Format};
       const std::string loadSql{BuildLoadSql(Table, Format, filePath)};
       if (loadSql.empty()) {
