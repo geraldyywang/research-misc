@@ -16,7 +16,7 @@ int main(int Argc, char* Argv[]) {
 
   const auto tableSpecs{CreateTables(cwd / "tpch_data" / "benchmark_config.toml")};
   for (const auto& tableSpec : tableSpecs) {
-    const auto batch{BuildRecordBatch(tableSpec)};
+    const auto batch{BuildTable(tableSpec)};
 
     BatchToParquet(batch, cwd / "tpch_data" / (tableSpec.name + ".parquet"));
     std::cout << "Created " << tableSpec.name << ".parquet\n";

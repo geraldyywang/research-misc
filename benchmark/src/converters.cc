@@ -286,7 +286,10 @@ std::shared_ptr<arrow::Table> BuildTable(const TableSpec& TableSpec) {
     std::vector<std::shared_ptr<arrow::Array>> arrays;
     for (auto& builder : builders) {
       std::shared_ptr<arrow::Array> arr;
-      builder->Finish(&arr);
+      auto st{builder->Finish(&arr)};
+      if (!st.ok()) {
+        throw std::runtime_error("Finish() failed: " + st.ToString());
+      }
       arrays.push_back(std::move(arr));
     }
     batches.push_back(arrow::RecordBatch::Make(schema, rowCount, arrays));
