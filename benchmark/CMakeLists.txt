@@ -31,6 +31,8 @@ add_subdirectory(external/tomlplusplus)
 add_subdirectory(external/duckdb)
 
 # We set this again right before nanoarrow to ensure it doesn't try to find its own
+set(DUCKDB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/duckdb" CACHE PATH "" FORCE)
+set(DUCKDB_MODULE_BASE_DIR "${DUCKDB_PATH}" CACHE PATH "" FORCE)
 set(DUCKDB_INCLUDE_DIR "${DUCKDB_PATH}/src/include" CACHE PATH "" FORCE)
 add_subdirectory(external/duckdb-nanoarrow)
 
