@@ -38,6 +38,15 @@ add_subdirectory(external/duckdb)
 set(DUCKDB_INCLUDE_DIR "${DUCKDB_PATH}/src/include" CACHE PATH "" FORCE)
 add_subdirectory(external/duckdb-nanoarrow)
 
+foreach(target nanoarrow_extension nanoarrow_loadable_extension)
+    if(TARGET ${target})
+        target_include_directories(${target} PRIVATE 
+            "${DUCKDB_INCLUDE_DIR}"
+            "${DUCKDB_PATH}/src"
+        )
+    endif()
+endforeach()
+
 # --- 4. Logic Library ---
 add_library(bench_logic STATIC 
     src/converters.cc 
