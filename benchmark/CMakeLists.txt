@@ -26,10 +26,6 @@ find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
 find_package(CURL REQUIRED)
 
-# Prevent name collisions by ensuring we use real ZSTD
-add_definitions(-DDUCKDB_USE_REAL_ZSTD=1)
-add_definitions(-Dduckdb_zstd=zstd)
-
 # --- 3. Add Subdirectories ---
 add_subdirectory(external/tomlplusplus)
 add_subdirectory(external/duckdb)
@@ -40,10 +36,16 @@ add_subdirectory(external/duckdb-nanoarrow)
 
 foreach(target nanoarrow_extension nanoarrow_loadable_extension)
     if(TARGET ${target})
+        # Fix missing headers (arrow.hpp, etc)
         target_include_directories(${target} PRIVATE 
             "${DUCKDB_INCLUDE_DIR}"
             "${DUCKDB_PATH}/src"
+            "${DUCKDB_PATH}/third_party/zstd/include"
         )
+        
+        # Fix ZSTD namespace error: 
+        # By setting this ONLY for these targets, we match DuckDB's internal expectations
+        target_compile_definitions(${target} PRIVATE DUCKDB_USE_REAL_ZSTD=1)
     endif()
 endforeach()
 
