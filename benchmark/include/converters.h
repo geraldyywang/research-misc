@@ -33,15 +33,15 @@ struct TableSpec {
 
 std::vector<TableSpec> CreateTables(const std::filesystem::path& ConfigPath);
 
-std::shared_ptr<arrow::RecordBatch> BuildRecordBatch(const TableSpec& TableSpec);
+std::shared_ptr<arrow::Table> BuildTable(const TableSpec& TableSpec);
 
-void BatchToParquet(const std::shared_ptr<arrow::RecordBatch> Batch, const std::filesystem::path& OutPath);
+void BatchToParquet(const std::shared_ptr<arrow::Table> Table, const std::filesystem::path& OutPath);
 
-void BatchToArrow(const std::shared_ptr<arrow::RecordBatch> Batch, const std::filesystem::path& OutPath);
+void BatchToArrow(const std::shared_ptr<arrow::Table> Table, const std::filesystem::path& OutPath);
 
-void BatchToArrows(const std::shared_ptr<arrow::RecordBatch> Batch, const std::filesystem::path& OutPath);
+void BatchToArrows(const std::shared_ptr<arrow::Table> Table, const std::filesystem::path& OutPath);
 
-void BatchToCSV(const std::shared_ptr<arrow::RecordBatch> Batch, const std::filesystem::path& OutPath);
+void BatchToCSV(const std::shared_ptr<arrow::Table> Table, const std::filesystem::path& OutPath);
 
 }  // namespace rmisc::benchmark
 
