@@ -97,6 +97,7 @@ void RunBenchmark(const std::vector<TableSpec>& Tables, const fs::path& SummaryC
   std::unordered_map<std::string, std::unordered_map<std::string, int>> numDataPoints;
 
   for (const auto& Table : Tables) {
+    std::cout << "Evaluating " << Table.name << '\n';
     const std::string createSql{BuildCreateTableSql(Table)};
 
     for (const auto& Format : Formats) {
@@ -107,6 +108,7 @@ void RunBenchmark(const std::vector<TableSpec>& Tables, const fs::path& SummaryC
       }
 
       for (int trial{0}; trial < NTrials; ++trial) {
+        std::cout << "Trial " << trial << '\n';
         try {
           Con.Query("DROP TABLE IF EXISTS " + Table.name);
           Con.Query(createSql);
