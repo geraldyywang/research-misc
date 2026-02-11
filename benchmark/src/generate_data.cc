@@ -16,7 +16,7 @@ void MustQuery(duckdb::Connection& Con, const std::string& Sql) {
 
 int main() {
   try {
-    std::cout << "Generating TPC-H data (SF 1)..." << std::endl;
+    std::cout << "Generating TPC-H data (SF 100)..." << std::endl;
 
     fs::create_directories("tpch_data");
 
@@ -27,7 +27,7 @@ int main() {
     MustQuery(Con, "LOAD tpch;");
 
     std::cout << "Generating data (SF 1)..." << std::endl;
-    MustQuery(Con, "CALL dbgen(sf=1);");
+    MustQuery(Con, "CALL dbgen(sf=100);");
 
     const std::vector<std::string> Tables{
         "lineitem",
