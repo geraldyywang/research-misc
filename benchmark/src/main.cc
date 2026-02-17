@@ -13,14 +13,9 @@ int main(int Argc, char* Argv[]) {
   bool runBenchmark {true};
 
   if (Argc >= 2) {
-    genOtherFmts = false, runBenchmark = false;
-
-    if (Argv[1] == "gen") {
-      genOtherFmts = true;
-    }
-    if (Argv[1] == "benchmark") {
-      runBenchmark = true;
-    }
+    std::string mode(Argv[1]);
+    genOtherFmts = (mode == "gen");
+    runBenchmark = (mode == "bench");
   }
 
   const auto cwd{fs::current_path()};
@@ -28,19 +23,8 @@ int main(int Argc, char* Argv[]) {
 
   if (genOtherFmts) {
     for (const auto& tableSpec : tableSpecs) {
-      const auto batch{BuildTable(tableSpec)};
-
-      BatchToParquet(batch, cwd / "tpch_data" / (tableSpec.name + ".parquet"));
-      std::cout << "Created " << tableSpec.name << ".parquet\n";
-
-      BatchToArrow(batch, cwd / "tpch_data" / (tableSpec.name + ".arrow"));
-      std::cout << "Created " << tableSpec.name << ".arrow\n";
-
-      BatchToArrows(batch, cwd / "tpch_data" / (tableSpec.name + ".arrows"));
-      std::cout << "Created " << tableSpec.name << ".arrows\n";
-
-      BatchToCSV(batch, cwd / "tpch_data" / (tableSpec.name + ".csv"));
-      std::cout << "Created " << tableSpec.name << ".csv\n";
+      StreamTableToFormats(tableSpec, cwd / "tpch_data");
+      std::cout << "Created " << tableSpec.name << " files\n";
     }
   }
 

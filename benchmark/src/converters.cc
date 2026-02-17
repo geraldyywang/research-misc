@@ -258,133 +258,80 @@ std::vector<TableSpec> CreateTables(const fs::path& ConfigPath) {
   return tableSpecs;
 }
 
-std::shared_ptr<arrow::Table> BuildTable(const TableSpec& TableSpec) {
-  auto schema{MakeArrowSchema(TableSpec)};
-  std::vector<std::unique_ptr<arrow::ArrayBuilder>> builders;
-  builders.reserve(TableSpec.columns.size());
 
-  for (const auto& Col : TableSpec.columns) {
-    builders.push_back(MakeBuilder(Col));
-  }
+void StreamTableToFormats(const TableSpec& tableSpec, const fs::path& dataDir) {
+    auto schema {MakeArrowSchema(tableSpec)};
+    auto pool {arrow::default_memory_pool()};
 
-  std::ifstream in{TableSpec.tblPath};
-  if (!in) {
-    throw std::runtime_error("Failed to open tbl file: " +
-                             TableSpec.tblPath.string());
-  }
+    
+    auto pqFile {arrow::io::FileOutputStream::Open((dataDir / (tableSpec.name + ".parquet")).string()).ValueOrDie()};
+    auto pqWriter {parquet::arrow::FileWriter::Open(
+        *schema, 
+        pool, 
+        pqFile, 
+        parquet::default_writer_properties(),
+        parquet::default_arrow_writer_properties()
+    ).ValueOrDie()};
 
-  std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
+    auto csvFile {arrow::io::FileOutputStream::Open((dataDir / (tableSpec.name + ".csv")).string()).ValueOrDie()};
+    
+    auto arrowFile {arrow::io::FileOutputStream::Open((dataDir / (tableSpec.name + ".arrow")).string()).ValueOrDie()};
+    auto arrowWriter {arrow::ipc::MakeFileWriter(arrowFile, schema).ValueOrDie()};
 
-  std::string line;
-  int64_t rowCount{0};
+    auto arrowsFile {arrow::io::FileOutputStream::Open((dataDir / (tableSpec.name + ".arrows")).string()).ValueOrDie()};
+    auto arrowsWriter {arrow::ipc::MakeStreamWriter(arrowsFile, schema).ValueOrDie()};
 
-  auto flush{[&]() {
-    if (rowCount == 0) {
-      return;
+
+    std::vector<std::unique_ptr<arrow::ArrayBuilder>> builders;
+    for (const auto& col : tableSpec.columns) {
+        builders.push_back(MakeBuilder(col));
     }
 
-    std::vector<std::shared_ptr<arrow::Array>> arrays;
-    for (auto& builder : builders) {
-      std::shared_ptr<arrow::Array> arr;
-      auto st{builder->Finish(&arr)};
-      if (!st.ok()) {
-        throw std::runtime_error("Finish() failed: " + st.ToString());
-      }
-      arrays.push_back(std::move(arr));
+    
+    std::ifstream in{tableSpec.tblPath};
+    std::string line;
+    int64_t rowCount {};
+
+    auto flushAndWrite {[&]() {
+        if (rowCount == 0) return;
+
+        std::vector<std::shared_ptr<arrow::Array>> arrays;
+        for (auto& builder : builders) {
+            std::shared_ptr<arrow::Array> arr;
+            ARROW_CHECK_OK(builder->Finish(&arr));
+            arrays.push_back(std::move(arr));
+        }
+
+        auto batch {arrow::RecordBatch::Make(schema, rowCount, arrays)};
+        auto table {arrow::Table::FromRecordBatches(schema, {batch}).ValueOrDie()};
+
+        ARROW_CHECK_OK(pqWriter->WriteTable(*table, ARROW_RECORD_BATCH_MAX_CHUNK_SIZE));
+        ARROW_CHECK_OK(arrowWriter->WriteTable(*table));
+        ARROW_CHECK_OK(arrow::csv::WriteCSV(*table, arrow::csv::WriteOptions::Defaults(), csvFile.get()));
+        ARROW_CHECK_OK(arrowsWriter->WriteTable(*table));
+
+        rowCount = 0;
+    }};
+
+    while (std::getline(in, line)) {
+        if (line.empty()) continue;
+        if (line.back() == '\r') line.pop_back();
+
+        const auto fields = SplitPipe(line);
+        for (size_t i = 0; i < tableSpec.columns.size(); ++i) {
+            ARROW_CHECK_OK(AppendFieldToBuilder(builders[i].get(), tableSpec.columns[i], fields[i]));
+        }
+
+        if (++rowCount >= ARROW_RECORD_BATCH_MAX_CHUNK_SIZE) {
+            flushAndWrite();
+        }
     }
-    batches.push_back(arrow::RecordBatch::Make(schema, rowCount, arrays));
-    rowCount = 0;
-  }};
 
-  while (std::getline(in, line)) {
-    if (line.empty()) {
-      continue;
-    }
+    flushAndWrite();
 
-    if (line.back() == '\r') {
-      line.pop_back();
-    }
-
-    const auto fields{SplitPipe(line)};
-    if (fields.size() != TableSpec.columns.size()) {
-      throw std::runtime_error("Field count mismatch in " +
-                               TableSpec.tblPath.string() + ": got " +
-                               std::to_string(fields.size()) + ", expected " +
-                               std::to_string(TableSpec.columns.size()));
-    }
-
-    for (size_t i{0}; i < TableSpec.columns.size(); ++i) {
-      const auto st{AppendFieldToBuilder(builders[i].get(),
-                                         TableSpec.columns[i], fields[i])};
-      if (!st.ok()) {
-        throw std::runtime_error("Append failed for column " +
-                                 TableSpec.columns[i].name + ": " +
-                                 st.ToString());
-      }
-    }
-
-    ++rowCount;
-    if (rowCount >= ARROW_RECORD_BATCH_MAX_CHUNK_SIZE) {
-      flush();
-    }
-  }
-
-  return arrow::Table::FromRecordBatches(schema, batches).ValueOrDie();
-}
-
-void BatchToParquet(const std::shared_ptr<arrow::Table> Table,
-                    const fs::path& OutPath) {
-  auto outfile =
-      arrow::io::FileOutputStream::Open(OutPath.string()).ValueOrDie();
-  //
-  // Parquet WriteTable handles chunks automatically.
-  // It will create one Parquet RowGroup per Arrow RecordBatch.
-  //
-  //
-  PARQUET_THROW_NOT_OK(
-      parquet::arrow::WriteTable(*Table, arrow::default_memory_pool(), outfile,
-                                 ARROW_RECORD_BATCH_MAX_CHUNK_SIZE));
-}
-
-void BatchToArrow(const std::shared_ptr<arrow::Table> Table,
-                  const fs::path& OutPath) {
-  auto outfile =
-      arrow::io::FileOutputStream::Open(OutPath.string()).ValueOrDie();
-  //
-  // The File format (.arrow) supports multiple batches
-  //
-  //
-  auto writer =
-      arrow::ipc::MakeFileWriter(outfile, Table->schema()).ValueOrDie();
-  ARROW_CHECK_OK(writer->WriteTable(*Table));
-  ARROW_CHECK_OK(writer->Close());
-}
-
-void BatchToArrows(const std::shared_ptr<arrow::Table> Table,
-                   const fs::path& OutPath) {
-  auto outfile =
-      arrow::io::FileOutputStream::Open(OutPath.string()).ValueOrDie();
-  //
-  // The Stream format (.arrows) writes batches one after another
-  //
-  //
-  auto writer =
-      arrow::ipc::MakeStreamWriter(outfile, Table->schema()).ValueOrDie();
-  ARROW_CHECK_OK(writer->WriteTable(*Table));
-  ARROW_CHECK_OK(writer->Close());
-}
-
-void BatchToCSV(const std::shared_ptr<arrow::Table> Table,
-                const fs::path& OutPath) {
-  auto outfile =
-      arrow::io::FileOutputStream::Open(OutPath.string()).ValueOrDie();
-  //
-  // CSV writer will iterate through all chunks in the table
-  //
-  //
-  auto status = arrow::csv::WriteCSV(
-      *Table, arrow::csv::WriteOptions::Defaults(), outfile.get());
-  ARROW_CHECK_OK(status);
+    ARROW_CHECK_OK(pqWriter->Close());
+    ARROW_CHECK_OK(arrowWriter->Close());
+    ARROW_CHECK_OK(arrowsWriter->Close());
 }
 
 }  // namespace rmisc::benchmark
